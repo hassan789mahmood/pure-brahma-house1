@@ -21,7 +21,7 @@ if (heroBg) {
 // ── SCROLL REVEAL ──
 const revealEls = document.querySelectorAll('.reveal');
 const revealObserver = new IntersectionObserver((entries) => {
-  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); revealObserver.unobserve(e.target); }});
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); revealObserver.unobserve(e.target); } });
 }, { threshold: 0.12 });
 revealEls.forEach(el => revealObserver.observe(el));
 
@@ -151,7 +151,7 @@ chatTrigger?.addEventListener('click', async () => {
 
 // ── BOOKING FORM ──
 const bookingForm = document.getElementById('bookingForm');
-bookingForm?.addEventListener('submit', e => {
+bookingForm?.addEventListener('submit', async e => {
   e.preventDefault();
   const data = new FormData(bookingForm);
   const product = data.get('product') || 'your selected product';
@@ -159,12 +159,34 @@ bookingForm?.addEventListener('submit', e => {
   const city = data.get('city') || '___';
   const qty = data.get('quantity') || '___';
   const msg = `Hello Pure Brahma House, my name is ${name}. I would like to book ${product}. My city is: ${city} and quantity required is: ${qty}. Please share availability and pricing.`;
-  bookingForm.style.display = 'none';
-  const success = document.getElementById('formSuccess');
-  if (success) {
-    success.style.display = 'block';
-    const waBtn = success.querySelector('.wa-continue');
-    if (waBtn) waBtn.href = waLink(msg);
+
+  // Submit to Web3Forms
+  const submitBtn = bookingForm.querySelector('button[type="submit"]');
+  const originalText = submitBtn?.innerHTML;
+  if (submitBtn) submitBtn.innerHTML = 'Submitting…';
+  if (submitBtn) submitBtn.disabled = true;
+
+  try {
+    const res = await fetch('https://api.web3forms.com/submit', {
+      method: 'POST',
+      body: data
+    });
+    const result = await res.json();
+    if (result.success) {
+      bookingForm.style.display = 'none';
+      const success = document.getElementById('formSuccess');
+      if (success) {
+        success.style.display = 'block';
+        const waBtn = success.querySelector('.wa-continue');
+        if (waBtn) waBtn.href = waLink(msg);
+      }
+    } else {
+      alert('Something went wrong. Please try again or contact us on WhatsApp.');
+      if (submitBtn) { submitBtn.innerHTML = originalText; submitBtn.disabled = false; }
+    }
+  } catch (err) {
+    alert('Network error. Please try again or contact us on WhatsApp.');
+    if (submitBtn) { submitBtn.innerHTML = originalText; submitBtn.disabled = false; }
   }
 });
 
@@ -201,7 +223,7 @@ function animateCounter(el) {
   }, 24);
 }
 const counterObs = new IntersectionObserver(entries => {
-  entries.forEach(e => { if (e.isIntersecting) { animateCounter(e.target); counterObs.unobserve(e.target); }});
+  entries.forEach(e => { if (e.isIntersecting) { animateCounter(e.target); counterObs.unobserve(e.target); } });
 }, { threshold: 0.5 });
 document.querySelectorAll('.counter').forEach(el => counterObs.observe(el));
 
@@ -209,3 +231,60 @@ document.querySelectorAll('.counter').forEach(el => counterObs.observe(el));
 document.querySelectorAll('[data-wa]').forEach(el => {
   el.addEventListener('click', () => window.open(waLink(el.dataset.wa), '_blank'));
 });
+// ── DRAG TO SCROLL ──
+const sliders = document.querySelectorAll('.products-grid:not(.featured-products-grid)');
+let isDown = false;
+let startX;
+let scrollLeft;
+
+sliders.forEach(slider => {
+  slider.addEventListener('mousedown', (e) => {
+    isDown = true;
+    slider.style.cursor = 'grabbing';
+    startX = e.pageX - slider.offsetLeft;
+    scrollLeft = slider.scrollLeft;
+  });
+  slider.addEventListener('mouseleave', () => {
+    isDown = false;
+    slider.style.cursor = 'pointer';
+  });
+  slider.addEventListener('mouseup', () => {
+    isDown = false;
+    slider.style.cursor = 'pointer';
+  });
+  slider.addEventListener('mousemove', (e) => {
+    if (!isDown) return;
+    e.preventDefault();
+    const x = e.pageX - slider.offsetLeft;
+    const walk = (x - startX) * 2; // scroll-fast
+    slider.scrollLeft = scrollLeft - walk;
+  });
+});
+
+// ── OOS CAROUSEL NAVIGATION ──
+const oosCarousel = document.querySelector('.oos-carousel');
+const prevBtn = document.querySelector('.prev-side-btn');
+const nextBtn = document.querySelector('.next-side-btn');
+
+if (oosCarousel && prevBtn && nextBtn) {
+  const scrollAmount = 340; // card width + gap
+
+  const updateButtons = () => {
+    prevBtn.disabled = oosCarousel.scrollLeft <= 0;
+    nextBtn.disabled = oosCarousel.scrollLeft >= oosCarousel.scrollWidth - oosCarousel.clientWidth - 10;
+  };
+
+  prevBtn.addEventListener('click', () => {
+    oosCarousel.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+  });
+
+  nextBtn.addEventListener('click', () => {
+    oosCarousel.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+  });
+
+  oosCarousel.addEventListener('scroll', updateButtons, { passive: true });
+  window.addEventListener('resize', updateButtons);
+  
+  // Initial check
+  setTimeout(updateButtons, 100);
+}
